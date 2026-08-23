@@ -1,0 +1,10 @@
+{
+  "profiles": [
+    {
+      "name": "default",
+      "secret": "${TPROXY_SECRET}",
+      "backend": "127.0.0.1:2398",
+      "carrier_mode": "${CARRIER_MODE}"
+    }
+  ]
+}
