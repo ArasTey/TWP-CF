@@ -237,17 +237,37 @@ async function deploy(request) {
     annotations: { "workers/message": "TWP-CF deployment" }
   };
 
-  // IMPORTANT: metadata is a JSON Blob. Do not set Content-Type manually on the multipart request.
-  const form = new FormData();
-  form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }), "metadata.json");
-  for (const [fileName, code] of Object.entries(files)) {
-    form.append(fileName, new Blob([code], { type: "application/javascript+module" }), fileName);
+  // Cloudflare may accept the account-level workers.dev subdomain change before
+  // its deployment API is ready to use it. On a brand-new account, the first
+  // script upload can temporarily return error 10063 even though provisioning
+  // succeeded. Retry ONLY that transient readiness error; never mask unrelated
+  // deployment failures. Rebuild FormData on each attempt so every request has
+  // a fresh multipart body.
+  const scriptPath = `/accounts/${encodeURIComponent(accountId)}/workers/scripts/${encodeURIComponent(name)}`;
+  const isWorkersDevNotReady = error => {
+    const errors = Array.isArray(error?.cloudflareErrors) ? error.cloudflareErrors : [];
+    return errors.some(item => Number(item?.code) === 10063 || /workers\.dev domain is not ready|workers.dev.*not ready/i.test(String(item?.message || "")))
+      || /workers\.dev domain is not ready|workers.dev.*not ready/i.test(String(error?.message || ""));
+  };
+  const uploadDelays = [1000, 2000, 3500, 5000];
+  let uploadError = null;
+  for (let attempt = 0; attempt <= uploadDelays.length; attempt++) {
+    const form = new FormData();
+    form.append("metadata", new Blob([JSON.stringify(metadata)], { type: "application/json" }), "metadata.json");
+    for (const [fileName, code] of Object.entries(files)) {
+      form.append(fileName, new Blob([code], { type: "application/javascript+module" }), fileName);
+    }
+    try {
+      await cf(scriptPath, token, { method: "PUT", body: form });
+      uploadError = null;
+      break;
+    } catch (error) {
+      uploadError = error;
+      if (!isWorkersDevNotReady(error) || attempt >= uploadDelays.length) throw error;
+      await new Promise(resolve => setTimeout(resolve, uploadDelays[attempt]));
+    }
   }
-
-  await cf(`/accounts/${encodeURIComponent(accountId)}/workers/scripts/${encodeURIComponent(name)}`, token, {
-    method: "PUT",
-    body: form
-  });
+  if (uploadError) throw uploadError;
 
   // Enable this specific Worker on workers.dev.
   try {
