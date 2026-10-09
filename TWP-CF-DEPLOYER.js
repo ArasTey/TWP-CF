@@ -58,10 +58,10 @@ async function handle(request, env, ctx) {
     return new Response(HTML, { headers: headers("text/html; charset=utf-8") });
   }
   try {
-    if (u.pathname === "/api/verify" && request.method === "POST") return verify(request);
-    if (u.pathname === "/api/deploy" && request.method === "POST") return deploy(request);
-    if (u.pathname === "/api/workers" && request.method === "GET") return listWorkers(request);
-    if (u.pathname === "/api/delete" && request.method === "POST") return deleteWorker(request);
+    if (u.pathname === "/api/verify" && request.method === "POST") return await verify(request);
+    if (u.pathname === "/api/deploy" && request.method === "POST") return await deploy(request);
+    if (u.pathname === "/api/workers" && request.method === "GET") return await listWorkers(request);
+    if (u.pathname === "/api/delete" && request.method === "POST") return await deleteWorker(request);
     return json({ success: false, error: "Not found" }, 404);
   } catch (e) {
     console.error("TWP-CF deployer error", e);
