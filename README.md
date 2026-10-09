@@ -1,43 +1,19 @@
-# A-RTP — Railway Telegram WEB Proxy
+# TWP-CF Deployer — Account Error Diagnostics
 
-A direct Railway service for the Telegram WEB Proxy proof-of-concept based on RTHeLL/tg-web-proxy.
+Single-file Cloudflare Worker deployer. Paste `TWP-CF-DEPLOYER.js` into a Cloudflare Worker and deploy it.
 
-This repository is intentionally **proxy-only**. There is no admin panel, FastAPI, Uvicorn, Python runtime, Railway API token UI, or provisioning dashboard.
-
-## Railway
-
-1. Create a Railway service from this GitHub repository.
-2. Railway detects the root `Dockerfile`.
-3. Generate a public Railway domain in Networking.
-4. Add `TPROXY_SECRET` as a 32-character lowercase hexadecimal secret.
-5. Redeploy.
-
-Generate a secret locally:
-
-```bash
-openssl rand -hex 16
-```
-
-The service uses `RAILWAY_PUBLIC_DOMAIN` automatically when available. You can override it with `TPROXY_HOSTNAME`. Railway's public `$PORT` is terminated by Caddy and forwarded internally to the relay on `127.0.0.1:18080`; these ports are intentionally different to avoid a bind collision.
-
-### Required variables
-
-- `TPROXY_SECRET`: 32 lowercase hex characters.
-- `TPROXY_HOSTNAME`: optional; defaults to Railway's public domain.
-
-### Optional
-
-- `CARRIER_MODE=websocket`
-- `MTPROXY_WORKERS=1`
-- `MTPROXY_MAX_CONNECTIONS=4096`
-- `TPROXY_LISTEN=127.0.0.1:18080` (optional; keep private/internal)
+## Error handling included
+- Shows readable explanations for invalid/expired API tokens, insufficient permissions, account scope/access problems, workers.dev setup, duplicate Worker names, Durable Object/SQLite provisioning, rate/resource limits, billing restrictions, and network errors.
+- Displays Cloudflare's original error text, HTTP status, and returned Cloudflare error code when available.
+- Gives a next step the user can follow rather than only showing a generic “failed” message.
+- Applies to token verification, deployment, worker deletion, and API requests made by the UI.
+- Never displays or logs the submitted API token in the error message.
 
 ## Important
+This is client-side diagnosis based on the HTTP status and text returned by Cloudflare. It cannot inspect account settings directly or guarantee the precise cause when Cloudflare returns an ambiguous error. The original API error is retained so support can diagnose cases that do not match a known category.
 
-This is a proof-of-concept WEB proxy implementation, not an official Telegram server product. The upstream project documents a reference deployment on a dedicated Linux host with public 80/443. Railway changes the edge/networking model, so actual Telegram compatibility must be tested on the deployed Railway domain.
-
-No "unlimited" bandwidth is promised; Railway and the underlying service have resource limits.
-
-## Upstream
-
-https://github.com/RTHeLL/tg-web-proxy
+## Deploy
+1. Open Cloudflare Dashboard → Workers & Pages.
+2. Create or open the TWP-CF deployer Worker.
+3. Paste the full contents of `TWP-CF-DEPLOYER.js` into the editor and deploy.
+4. Open the Worker URL and verify with a Cloudflare API token.
