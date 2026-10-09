@@ -32,7 +32,7 @@ function generatedName(){return 'twp-cf-'+crypto.randomUUID().replaceAll('-','')
 function generatedSecret(){const b=crypto.getRandomValues(new Uint8Array(16));return [...b].map(x=>x.toString(16).padStart(2,'0')).join('')}
 function ensureDefaults(){if(!name.value.trim())name.value=generatedName();if(!secret.value.trim())secret.value=generatedSecret()}
 function msg(title,text,type=''){status.className='status show '+type;statusTitle.textContent=title;statusMsg.textContent=text||''}function step(n,state='active'){document.querySelectorAll('.step').forEach(x=>{x.classList.remove('active','done');if(x.dataset.step===n)x.classList.add(state)})}function clearSteps(){document.querySelectorAll('.step').forEach(x=>x.classList.remove('active','done'))}function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function explainError(error){const status=Number(error?.status||error?.cloudflare_status||0);const raw=String(error?.message||error||'Unknown error');const code=String(error?.code||'');const text=(raw+' '+code).toLowerCase();let title='Request failed',fix='Check the details and try again.';if(/invalid.*token|token.*invalid|authentication|unauthorized|401/.test(text)||status===401){title='API token is invalid or expired';fix='Create a new Cloudflare API token, ensure it is active, paste it again, then press Verify access.'}else if(/forbidden|permission|not authorized|access denied|403/.test(text)||status===403){title='Token permissions are insufficient';fix='Ensure the token has Workers Scripts Edit and required account access for the selected account. Recreate the token with the permissions shown by the Create token link.'}else if(/account.*not accessible|no accessible.*account|account.*not found/.test(text)){title='Selected account is not accessible';fix='Choose an account included in this token. If the expected account is missing, update the token account scope or ask the account owner to grant access.'}else if(/workers_dev|workers.dev|subdomain/.test(text)){title='workers.dev domain is not ready';fix='Open Workers & Pages in this Cloudflare account and enable the workers.dev subdomain, then retry.'}else if(/already exists|already in use|duplicate|script.*exists/.test(text)||status===409){title='Worker name is already in use';fix='Choose a different Worker name. Names must be unique within the Cloudflare account.'}else if(/durable object|durable_object|sqlite|migration|namespace/.test(text)){title='Durable Object provisioning failed';fix='Check Workers and Durable Objects availability, account limits, and token permissions. If a partial Worker exists, retry with a different name.'}else if(/limit|quota|too many|rate limit|429/.test(text)||status===429){title='Cloudflare rate or resource limit';fix='Wait a few minutes and retry. If Cloudflare reports a resource limit, review Workers usage and account limits.'}else if(/billing|payment|plan|not entitled/.test(text)){title='Account plan or billing restriction';fix='Review Billing and Workers settings for this account and resolve the restriction reported by Cloudflare.'}else if(/invalid.*name|worker name/.test(text)){title='Worker name is invalid';fix='Use a short name with letters, numbers, and hyphens only.'}else if(/failed to fetch|networkerror|load failed/.test(text)){title='Network request failed';fix='Check your connection and whether Cloudflare API access is reachable, then retry.'}return {title,detail:raw,fix,status,code}}
+function explainError(error){const status=Number(error?.status||error?.cloudflare_status||0);const raw=String(error?.message||error||'Unknown error');const code=String(error?.code||'');const text=(raw+' '+code).toLowerCase();let title='Request failed',fix='Check the details and try again.';if(/invalid.*token|token.*invalid|authentication|unauthorized|401/.test(text)||status===401){title='API token is invalid or expired';fix='Create a new Cloudflare API token, ensure it is active, paste it again, then press Verify access.'}else if(/forbidden|permission|not authorized|access denied|403/.test(text)||status===403){title='Token permissions are insufficient';fix='Ensure the token has Workers Scripts Edit and required account access for the selected account. Recreate the token with the permissions shown by the Create token link.'}else if(/account.*not accessible|no accessible.*account|account.*not found/.test(text)){title='Selected account is not accessible';fix='Choose an account included in this token. If the expected account is missing, update the token account scope or ask the account owner to grant access.'}else if(/10063|workers.dev domain is not ready/.test(text)){title='Account workers.dev setup failed';fix='The deployer tries to create the account-level workers.dev subdomain before uploading the Worker. Cloudflare rejected that setup request, so no new Worker was uploaded. Check that the API token has Workers Scripts Edit permission and access to this account. If the account has never initialized Workers, open Workers & Pages once in the Cloudflare Dashboard, finish the workers.dev setup, then retry.'}else if(/workers_dev|workers.dev|subdomain/.test(text)){title='workers.dev domain is not ready';fix='The deployer checks or initializes the account-level workers.dev subdomain before uploading. Check the token permissions and account access; if Cloudflare has not initialized Workers for this account, open Workers & Pages once and retry.'}else if(/already exists|already in use|duplicate|script.*exists/.test(text)||status===409){title='Worker name is already in use';fix='Choose a different Worker name. Names must be unique within the Cloudflare account.'}else if(/durable object|durable_object|sqlite|migration|namespace/.test(text)){title='Durable Object provisioning failed';fix='Check Workers and Durable Objects availability, account limits, and token permissions. If a partial Worker exists, retry with a different name.'}else if(/limit|quota|too many|rate limit|429/.test(text)||status===429){title='Cloudflare rate or resource limit';fix='Wait a few minutes and retry. If Cloudflare reports a resource limit, review Workers usage and account limits.'}else if(/billing|payment|plan|not entitled/.test(text)){title='Account plan or billing restriction';fix='Review Billing and Workers settings for this account and resolve the restriction reported by Cloudflare.'}else if(/invalid.*name|worker name/.test(text)){title='Worker name is invalid';fix='Use a short name with letters, numbers, and hyphens only.'}else if(/failed to fetch|networkerror|load failed/.test(text)){title='Network request failed';fix='Check your connection and whether Cloudflare API access is reachable, then retry.'}return {title,detail:raw,fix,status,code}}
 async function api(path,opts={}){const h=new Headers(opts.headers||{});if(sessionToken)h.set('Authorization','Bearer '+sessionToken);const r=await fetch(path,{...opts,headers:h,cache:'no-store',credentials:'same-origin'});let d=null;try{d=await r.json()}catch{}if(!r.ok||d?.success===false){const e=new Error(d?.error||d?.message||('Request failed (HTTP '+r.status+')'));e.status=r.status;e.code=d?.cloudflare_errors?.map(x=>x?.code).filter(Boolean).join(',')||'';e.cloudflare_status=d?.cloudflare_status||null;throw e}return d}
 ensureDefaults();
 verify.onclick=async()=>{const t=token.value.trim();if(!t)return msg('Token required','Paste a Cloudflare API token first.','error');verify.disabled=true;deploy.disabled=true;accountSelect.disabled=true;clearSteps();step('verify');msg('Verifying','Checking token and account access…');try{const d=await api('/api/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:t})});sessionToken=t;accounts=d.accounts||[];account=accounts.find(a=>a.id===d.account?.id)||accounts[0]||null;accountSelect.innerHTML=accounts.map(a=>'<option value="'+esc(a.id)+'">'+esc(a.name)+' ('+esc(a.id.slice(0,8))+'...)</option>').join('');accountSelect.value=account?.id||'';accountSelect.disabled=accounts.length<2;deploy.disabled=!account;step('verify','done');msg('Connected',account.name+' ('+account.id+') is ready for deployment.','ok')}catch(e){sessionToken='';account=null;accounts=[];accountSelect.innerHTML='<option value="">Verify token first</option>';accountSelect.disabled=true;{const x=explainError(e);msg(x.title,x.detail+'\\n\\nWhat to do: '+x.fix+(x.status?'\\nHTTP status: '+x.status:'')+(x.code?'\\nCloudflare code: '+x.code:''),'error')}}finally{verify.disabled=false}};accountSelect.onchange=()=>{account=accounts.find(a=>a.id===accountSelect.value)||null;deploy.disabled=!sessionToken||!account};
@@ -186,6 +186,43 @@ async function deploy(request) {
   const account = (accounts.result || []).find(a => a.id === accountId);
   if (!account) throw new Error("The selected Cloudflare account is not accessible with this token");
 
+  // Initialize the ACCOUNT-level workers.dev subdomain before uploading any Worker.
+  // A brand-new account may not have one yet; uploading first can fail with Cloudflare
+  // error 10063. Creating the account subdomain is supported by the Workers API.
+  let accountSubdomain = null;
+  try {
+    const current = await cf(`/accounts/${encodeURIComponent(accountId)}/workers/subdomain`, token);
+    accountSubdomain = current?.result?.subdomain || null;
+  } catch {
+    // A missing/uninitialized subdomain can make the GET fail. Try creating it below;
+    // if creation also fails, surface Cloudflare's original error before uploading.
+  }
+
+  if (!accountSubdomain) {
+    let createError = null;
+    for (let attempt = 0; attempt < 3 && !accountSubdomain; attempt++) {
+      const candidate = "twp-cf-" + crypto.randomUUID().replaceAll("-", "").slice(0, 10);
+      try {
+        const created = await cf(`/accounts/${encodeURIComponent(accountId)}/workers/subdomain`, token, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subdomain: candidate })
+        });
+        accountSubdomain = created?.result?.subdomain || candidate;
+      } catch (error) {
+        createError = error;
+        const messages = (error?.cloudflareErrors || []).map(item => String(item?.message || "")).join(" ").toLowerCase();
+        const retryableConflict = error?.cloudflareStatus === 409 || /already exists|already in use|taken|duplicate|subdomain.*exist|exist.*subdomain/.test(messages);
+        if (!retryableConflict) break;
+      }
+    }
+    if (!accountSubdomain) {
+      // Keep Cloudflare status/error codes intact for the UI diagnostics.
+      if (createError) throw createError;
+      throw new Error("Cloudflare did not return an account workers.dev subdomain. No Worker was uploaded.");
+    }
+  }
+
   const files = { ...RUNTIME };
   const metadata = {
     main_module: "index.js",
@@ -211,23 +248,6 @@ async function deploy(request) {
     method: "PUT",
     body: form
   });
-
-  // Account-level workers.dev subdomain: use the existing one or create a unique TWP-CF subdomain.
-  let accountSubdomain = null;
-  try {
-    const current = await cf(`/accounts/${encodeURIComponent(accountId)}/workers/subdomain`, token);
-    accountSubdomain = current?.result?.subdomain || null;
-  } catch {}
-
-  if (!accountSubdomain) {
-    const candidate = "twp-cf-" + crypto.randomUUID().replaceAll("-", "").slice(0, 10);
-    const created = await cf(`/accounts/${encodeURIComponent(accountId)}/workers/subdomain`, token, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subdomain: candidate })
-    });
-    accountSubdomain = created?.result?.subdomain || candidate;
-  }
 
   // Enable this specific Worker on workers.dev.
   try {
